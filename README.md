@@ -50,9 +50,7 @@ This downloads:
 
 ### 2. API keys
 
-Use either `.env` or separate key files:
-
-**Option A – `.env`:** Copy `.env.example` to `.env` and add:
+ `.env`:** Copy `.env.example` to `.env` and add:
 ```
 GEMINI_API_KEY=your_gemini_api_key_here
 ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
@@ -64,4 +62,13 @@ ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 2. Select the `teddytalk` folder (or a ZIP of it)
 3. App Lab installs dependencies automatically. Uses `opencv-python-headless` only (no libGL). If packages are missing, SSH in and run `scripts/setup_on_device.sh`.
 4. Run the app in App Lab
-5. Open the web UI for live feed (URL shown in App Lab, e.g. http://10.197.243.162:7000)
+
+## The whole process
+
+1. **Capture** — Open the web UI on your phone or laptop. You see a live camera feed. When you’re ready, capture.
+
+2. **Emotion** — The photo goes to the UNO Q. OpenCV finds a face, and the FER+ model guesses the emotion (happy, sad, surprised, etc.). The Arduino OLEDs update to show that emotion on the robot’s “eyes.” (implementation in the works for the OLEDs)
+
+3. **Poem** — The detected emotion is sent to Gemini, which returns a short romantic poem (2–6 lines) in that mood.
+
+4. **Voice** — ElevenLabs turns the poem into speech using your chosen voice. Audio plays over the Bluetooth speaker or the board’s default output. 
