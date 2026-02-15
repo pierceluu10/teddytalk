@@ -50,7 +50,7 @@ This downloads:
 
 ### 2. API keys
 
- `.env`:** Copy `.env.example` to `.env` and add:
+ `.env`: Copy `.env.example` to `.env` and add:
 ```
 GEMINI_API_KEY=your_gemini_api_key_here
 ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
