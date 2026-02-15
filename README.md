@@ -60,7 +60,7 @@ ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 
 1. **Import**: In App Lab, use **Create new app +** → **Import from folder** (or **Import from .zip**)
 2. Select the `teddytalk` folder (or a ZIP of it)
-3. App Lab installs dependencies automatically. Uses `opencv-python-headless` only (no libGL). If packages are missing, SSH in and run `scripts/setup_on_device.sh`.
+3. App Lab installs dependencies automatically. Uses `opencv-python-headless` only. If packages are missing, SSH in and run `scripts/setup_on_device.sh`.
 4. Run the app in App Lab
 
 ## The whole process
