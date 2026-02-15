@@ -209,8 +209,9 @@
             Loading camera...
           </div>
         </div>
-        <div class="flex" style="margin-top: 0.75rem">
+        <div class="flex" style="margin-top: 0.75rem; align-items: center; gap: 0.5rem">
           <button class="btn" id="capture-btn">Capture & Analyze</button>
+          <span class="cooldown-timer" id="cooldown-timer" style="display: none; color: var(--muted); font-size: 0.9rem"></span>
         </div>
       </div>
 
@@ -252,6 +253,7 @@
           Click Capture when ready. I'll detect your emotion and speak a
           romantic poem.
         </div>
+        <div id="api-warning" class="status" style="margin-top:0.5rem;color:#f87171;display:none"></div>
       </div>
 
       <div class="status">
@@ -276,7 +278,10 @@
 
       const socket = io(window.location.origin);
       const captureBtn = document.getElementById("capture-btn");
+      const cooldownTimer = document.getElementById("cooldown-timer");
       const emotionEl = document.getElementById("emotion");
+      const CAPTURE_COOLDOWN = 10;
+      let cooldownInterval = null;
       const emotionBars = document.getElementById("emotion-bars");
       const poemEl = document.getElementById("poem");
       const dot = document.getElementById("dot");
@@ -290,10 +295,38 @@
       socket.on("connect", () => setStatus(true, "Connected"));
       socket.on("disconnect", () => setStatus(false, "Disconnected"));
 
+      function startCooldown(seconds) {
+        if (cooldownInterval) clearInterval(cooldownInterval);
+        captureBtn.disabled = true;
+        cooldownTimer.style.display = "inline";
+        let remaining = Math.ceil(seconds);
+        const tick = () => {
+          cooldownTimer.textContent = `Next capture in ${remaining}s`;
+          if (remaining <= 0) {
+            clearInterval(cooldownInterval);
+            cooldownInterval = null;
+            captureBtn.disabled = false;
+            cooldownTimer.style.display = "none";
+            return;
+          }
+          remaining--;
+        };
+        tick();
+        cooldownInterval = setInterval(tick, 1000);
+      }
+
       socket.on("capture_result", (d) => {
-        captureBtn.disabled = false;
+        if (d?.ok && d.cooldown_remaining) {
+          startCooldown(d.cooldown_remaining);
+        } else if (!d?.ok && d?.cooldown_remaining) {
+          startCooldown(d.cooldown_remaining);
+        } else {
+          captureBtn.disabled = false;
+          cooldownTimer.style.display = "none";
+          if (cooldownInterval) clearInterval(cooldownInterval);
+        }
         if (d?.error) setStatus(false, "Error: " + d.error);
-        else setStatus(true, "Done");
+        else if (d?.ok) setStatus(true, "Done");
       });
 
       socket.on("emotion_update", (d) => {
@@ -313,6 +346,36 @@
       socket.on("poem", (d) => {
         poemEl.textContent = d.poem || "";
         poemEl.classList.remove("empty");
+        const warn = document.getElementById("api-warning");
+        if (d?.api_error) {
+          warn.textContent = "⚠ " + d.api_error;
+          warn.style.display = "block";
+          setStatus(false, "API error - check poem section");
+        } else {
+          warn.textContent = "";
+          warn.style.display = "none";
+        }
+      });
+
+      socket.on("tts_error", (d) => {
+        if (d?.error) setStatus(false, "TTS: " + d.error.substring(0, 60) + (d.error.length > 60 ? "…" : ""));
+      });
+
+      socket.on("audio_play", (d) => {
+        if (!d?.audio_b64) return;
+        try {
+          const binary = atob(d.audio_b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const blob = new Blob([bytes], { type: "audio/mpeg" });
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audio.onended = () => URL.revokeObjectURL(url);
+          audio.onerror = () => { setStatus(false, "Audio play failed"); URL.revokeObjectURL(url); };
+          audio.play();
+        } catch (e) {
+          setStatus(false, "Audio error: " + (e.message || "unknown"));
+        }
       });
 
       socket.on("bt_devices", (d) => {
@@ -389,7 +452,7 @@
 
       captureBtn.addEventListener("click", () => {
         captureBtn.disabled = true;
-        setStatus(true, "Analyzing...");
+        setStatus(true, "Processing...");
         const sink = document.getElementById("sink-select").value;
         socket.emit("capture", { audio_sink: sink || undefined });
       });

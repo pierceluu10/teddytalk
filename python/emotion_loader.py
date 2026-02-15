@@ -36,7 +36,9 @@ def load_emotion_recognizer(model_name=None):
     import onnxruntime as ort
 
     path = _get_model_path()
-    session = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+    opts = ort.SessionOptions()
+    opts.log_severity_level = 3  # Error only - suppress GPU discovery warning
+    session = ort.InferenceSession(path, opts, providers=["CPUExecutionProvider"])
 
     class FERPlusRecognizer:
         def predict_emotions(self, face_rgb, logits=False):

@@ -1,4 +1,7 @@
 .env
+python/gemini_api_key.txt
+python/elevenlabs_api_key.txt
 python/wheels/
+python/bundle/
 *.pyc
 __pycache__/
