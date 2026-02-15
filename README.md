@@ -69,6 +69,6 @@ ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 
 2. **Emotion** — The photo goes to the UNO Q. OpenCV finds a face, and the FER+ model guesses the emotion (happy, sad, surprised, etc.). The Arduino OLEDs update to show that emotion on the robot’s “eyes.” (implementation in the works for the OLEDs)
 
-3. **Poem** — The detected emotion is sent to Gemini, which returns a short romantic poem (2–6 lines) in that mood.
+3. **Teddy Message** — The detected emotion is sent to Gemini, which returns a short romantic poem (2–6 lines) in that mood.
 
 4. **Voice** — ElevenLabs turns the poem into speech using your chosen voice. Audio plays over the Bluetooth speaker or the board’s default output. 
