@@ -1,12 +1,18 @@
 #!/bin/bash
-# Optional: run ON the Arduino UNO Q (via SSH) to install deps.
-# With FER+ ONNX, requirements.txt uses only opencv-python-headless (no libGL).
-# App Lab usually installs automatically; use this if packages are missing.
+# Run ON the Arduino UNO Q (via SSH) to install deps from bundle.
+# Use bundle from scripts/bundle_all.py - copy python/bundle/ to device first.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_ROOT="$(dirname "$SCRIPT_DIR")"
 REQ="$APP_ROOT/python/requirements.txt"
+BUNDLE="$APP_ROOT/python/bundle/wheels"
 
-echo "Emotion Poet - Device setup"
-pip install -r "$REQ"
+echo "Teddy Talk - Device setup"
+if [ -d "$BUNDLE" ]; then
+    echo "Installing from offline bundle..."
+    pip install --no-index --find-links "$BUNDLE" -r "$REQ"
+else
+    echo "No bundle found. Installing from internet..."
+    pip install -r "$REQ"
+fi
 echo "Done. Restart the app."

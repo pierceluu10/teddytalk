@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Emotion Poet - Arduino UNO Q
+Teddy Talk - Arduino UNO Q
 Face emotion detection, Gemini poem, ElevenLabs romantic TTS.
 2x 16x4 LCD robot eyes, full Bluetooth speaker support, USB camera stream.
 """
@@ -11,7 +11,14 @@ import shutil
 import subprocess
 os.environ.setdefault("ORT_DISABLE_GPU", "1")
 
-# Bootstrap: install deps if missing (App Lab container may not have run pip)
+# Set ONNX log level before any ort use (suppresses GPU discovery warning)
+try:
+    import onnxruntime as _ort
+    _ort.set_default_logger_severity(3)  # Error only
+except ImportError:
+    pass
+
+# Bootstrap: install deps if missing (prefer offline bundle)
 def _bootstrap_deps():
     missing = []
     try:
@@ -30,15 +37,17 @@ def _bootstrap_deps():
         return
     script_dir = os.path.dirname(os.path.abspath(__file__))
     req = os.path.join(script_dir, "requirements.txt")
+    bundle_wheels = os.path.join(script_dir, "bundle", "wheels")
     if not os.path.isfile(req):
         return
     print("Installing missing packages:", ", ".join(missing))
-    pip = shutil.which("uv") or shutil.which("pip") or shutil.which("pip3") or "pip"
-    if "uv" in pip:
-        cmd = [pip, "pip", "install", "-r", req]
+    pip_exe = shutil.which("uv") or shutil.which("pip") or shutil.which("pip3") or "pip"
+    extra = ["--no-index", "--find-links", bundle_wheels] if os.path.isdir(bundle_wheels) else []
+    if "uv" in pip_exe:
+        cmd = [pip_exe, "pip", "install"] + extra + ["-r", req]
     else:
-        cmd = [pip, "install", "-r", req]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        cmd = [pip_exe, "install"] + extra + ["-r", req]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     if r.returncode == 0:
         print("Packages installed. Restart the app.")
     else:
@@ -50,6 +59,12 @@ try:
 except Exception as e:
     print(f"Bootstrap check failed: {e}")
 
+from dotenv import load_dotenv
+
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_script_dir)
+load_dotenv(os.path.join(_project_root, ".env"))
+
 from arduino.app_utils import App, Bridge
 from arduino.app_bricks.web_ui import WebUI
 import base64
@@ -59,12 +74,6 @@ import json
 import threading
 import time
 from datetime import datetime, UTC
-
-# --- Config ---
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-API_KEYS_PATH = os.path.join(_script_dir, "api_keys.txt")
-GEMINI_KEY_PATH = os.path.join(_script_dir, "gemini_api_key.txt")
-ELEVENLABS_KEY_PATH = os.path.join(_script_dir, "elevenlabs_api_key.txt")
 
 # --- Web UI ---
 ui = WebUI()
@@ -94,19 +103,26 @@ if cv2:
         _req = os.path.join(_script_dir, "requirements.txt")
         print(f"  -> Install deps: pip install -r {_req}")
 
-# --- API keys ---
-def _load_api_key(env_var: str, *paths: str) -> str:
-    key = os.environ.get(env_var)
+# --- API keys (from .env or separate files) ---
+def _load_api_key(env_var: str, file_path: str) -> str:
+    """Load API key from env var first, then from file."""
+    key = (os.environ.get(env_var) or "").strip()
     if key:
-        return key.strip()
-    for p in paths:
-        if os.path.isfile(p):
-            with open(p) as f:
-                return f.read().strip()
+        return key
+    for fpath in [
+        os.path.join(_script_dir, file_path),
+        os.path.join(_project_root, "python", file_path),
+    ]:
+        if os.path.isfile(fpath):
+            try:
+                with open(fpath, "r") as f:
+                    return f.readline().strip()
+            except Exception:
+                pass
     return ""
 
-GEMINI_KEY = _load_api_key("GEMINI_API_KEY", GEMINI_KEY_PATH, API_KEYS_PATH)
-ELEVENLABS_KEY = _load_api_key("ELEVENLABS_API_KEY", ELEVENLABS_KEY_PATH, API_KEYS_PATH)
+GEMINI_KEY = _load_api_key("GEMINI_API_KEY", "gemini_api_key.txt")
+ELEVENLABS_KEY = _load_api_key("ELEVENLABS_API_KEY", "elevenlabs_api_key.txt")
 
 # --- Gemini ---
 gemini_client = None
@@ -171,8 +187,7 @@ def list_audio_sinks():
 def bluetooth_scan():
     """Scan for Bluetooth devices (run bluetoothctl scan for a few seconds)."""
     if not shutil.which("bluetoothctl"):
-        ui.send_message("bt_devices", {"devices": [], "error": "bluetoothctl not available"})
-        return
+        return {"devices": [], "error": "Bluetooth only available in SBC mode"}
     try:
         proc = subprocess.Popen(
             ["bluetoothctl", "scan", "on"],
@@ -183,7 +198,7 @@ def bluetooth_scan():
         proc.wait(timeout=2)
     except Exception:
         pass
-    return bluetooth_devices()
+    return {"devices": bluetooth_devices()}
 
 def bluetooth_devices():
     """List known Bluetooth devices."""
@@ -241,25 +256,90 @@ def bluetooth_connect(mac: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 def _play_audio(filepath: str) -> bool:
-    env = _get_audio_env()
-    cmd = ["paplay", filepath]
-    if SELECTED_SINK:
-        cmd = ["paplay", "-d", SELECTED_SINK, filepath]
-    for c in [cmd, ["mpv", "--no-video", "-q", filepath], ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", filepath]]:
+    """Play audio file. Tries: paplay -> mpv -> pw-play -> ffplay -> ffmpeg+aplay -> pygame."""
+    if not os.path.isfile(filepath):
+        print(f"Audio file not found: {filepath}")
+        return False
+    is_mp3 = filepath.lower().endswith(".mp3")
+
+    # Try default env first (uses system default sink - e.g. Bluetooth)
+    envs = [_get_audio_env(), os.environ.copy()]
+    commands = []
+    if SELECTED_SINK and shutil.which("paplay"):
+        commands.append(["paplay", "-d", SELECTED_SINK, filepath])
+    if shutil.which("paplay"):
+        commands.append(["paplay", filepath])
+    if shutil.which("mpv"):
+        commands.append(["mpv", "--no-video", "--really-quiet", filepath])
+    if shutil.which("pw-play"):
+        commands.append(["pw-play", filepath])
+    if shutil.which("ffplay"):
+        commands.append(["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", filepath])
+
+    for cmd in commands:
+        for env in envs:
+            try:
+                subprocess.run(
+                    cmd,
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=90,
+                    env=env,
+                )
+                return True
+            except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                continue
+
+    # aplay only plays WAV - convert MP3 to WAV if ffmpeg available
+    if is_mp3 and shutil.which("ffmpeg") and shutil.which("aplay"):
         try:
-            subprocess.run(c, check=True, capture_output=True, timeout=30, env=env)
+            base, _ = os.path.splitext(filepath)
+            wav_path = base + ".wav"
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", filepath, "-acodec", "pcm_s16le", "-ar", "44100", wav_path],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=30,
+            )
+            subprocess.run(["aplay", "-q", wav_path], check=True, timeout=90)
+            try:
+                os.remove(wav_path)
+            except OSError:
+                pass
             return True
-        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            continue
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
+    if not is_mp3 and shutil.which("aplay"):
+        try:
+            subprocess.run(["aplay", "-q", filepath], check=True, timeout=90)
+            return True
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
+
+    try:
+        import pygame.mixer
+        pygame.mixer.init()
+        pygame.mixer.music.load(filepath)
+        pygame.mixer.music.play()
+        while pygame.mixer.music.get_busy():
+            time.sleep(0.1)
+        return True
+    except Exception:
+        pass
     return False
 
 # --- TTS (ElevenLabs) ---
-ROMANTIC_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"  # Sarah - warm, expressive; or use "Natasha", "Serafina"
+ROMANTIC_VOICE_ID = "KH1SQLVulwP6uG4O3nmT"  # Sarah - warm, expressive
 
-def speak_text(text: str) -> None:
+def speak_text(text: str):
+    """Returns (success, error_message). Sends audio to browser for playback (same pipeline as YouTube)."""
     if not elevenlabs_client:
-        print("ElevenLabs not configured")
-        return
+        err = "ElevenLabs not configured. Add python/elevenlabs_api_key.txt or set ELEVENLABS_API_KEY in .env"
+        print(err)
+        return (False, err)
     try:
         audio = elevenlabs_client.text_to_speech.convert(
             text=text,
@@ -267,35 +347,48 @@ def speak_text(text: str) -> None:
             model_id="eleven_multilingual_v2",
             output_format="mp3_44100_128",
         )
-        temp = "/tmp/emotion_poet.mp3"
-        if os.name == "nt":
-            temp = os.path.join(os.environ.get("TEMP", "."), "emotion_poet.mp3")
-        with open(temp, "wb") as f:
-            if hasattr(audio, "__iter__") and not isinstance(audio, (bytes, str)):
-                for chunk in audio:
-                    f.write(chunk)
-            else:
-                f.write(audio)
-        _play_audio(temp)
+        audio_bytes = b""
+        if hasattr(audio, "__iter__") and not isinstance(audio, (bytes, str)):
+            for chunk in audio:
+                audio_bytes += chunk
+        else:
+            audio_bytes = audio
+        if len(audio_bytes) < 100:
+            return (False, "ElevenLabs returned empty/invalid audio (check API credits at elevenlabs.io)")
+        # Play in browser (same pipeline as YouTube - no server playback needed)
+        ui.send_message("audio_play", {"audio_b64": base64.b64encode(audio_bytes).decode()})
+        return (True, None)
     except Exception as e:
+        err_msg = str(e).lower()
         print(f"TTS Error: {e}")
+        if "quota" in err_msg or "credits" in err_msg or "402" in err_msg or "limit" in err_msg:
+            return (False, "ElevenLabs quota/credits exceeded - add credits at elevenlabs.io")
+        return (False, f"ElevenLabs error: {str(e)[:80]}")
 
 # --- Gemini poem ---
-def get_poem_for_emotion(emotion: str) -> str:
+def get_poem_for_emotion(emotion: str):
+    """Returns (poem_text, error_message). error_message is None on success."""
     if not gemini_client:
-        return f"I sense you feel {emotion}. Your emotions are valid."
+        return (
+            f"I sense you feel {emotion}. Your emotions are valid.",
+            "Gemini API key not configured. Add python/gemini_api_key.txt or set GEMINI_API_KEY in .env",
+        )
     try:
-        prompt = f"""Write a short romantic poem (2-6 lines) for someone who appears {emotion}.
-Be empathetic and uplifting. Output only the poem, no quotes or attribution. Keep it brief."""
+        prompt = f"""Write a poem to read aloud to your significant other. They appear {emotion}.
+Output only the poem - no quotes, no attribution, no extra text. 8-12 lines."""
         response = gemini_client.models.generate_content(
             model="gemini-2.0-flash",
             contents=prompt,
         )
         text = getattr(response, "text", None) or str(response)
-        return text.strip().strip('"') if text else f"I sense you feel {emotion}."
+        poem = text.strip().strip('"').strip("'") if text else ""
+        if not poem:
+            return (f"I sense you feel {emotion}.", "Gemini returned empty response")
+        return (poem, None)
     except Exception as e:
-        print(f"Gemini error: {e}")
-        return f"I sense you feel {emotion}. Your feelings matter."
+        err_msg = str(e)
+        print(f"Gemini error: {err_msg}")
+        return (f"I sense you feel {emotion}. Your feelings matter.", f"Gemini API error: {err_msg}")
 
 # --- Emotion mapping (FER+ labels -> internal) ---
 _EMOTION_MAP = {
@@ -366,15 +459,40 @@ def generate_frames():
         _, buf = cv2.imencode(".jpg", frame)
         yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
 
+# --- Rate limiting & poem cache ---
+LAST_CAPTURE_TIME = 0.0
+CAPTURE_COOLDOWN = 10  # seconds between captures
+LAST_EMOTION = None
+LAST_POEM = None
+LAST_POEM_TIME = 0.0
+POEM_CACHE_TIME = 30  # seconds to reuse poem for same emotion
+CAPTURE_IN_PROGRESS = False
+
 # --- Message handlers ---
 def on_capture(client_id, data=None):
     """Handle capture: grab from USB camera (or use provided image), analyze emotion, poem, speak."""
-    global SELECTED_SINK
+    global SELECTED_SINK, LAST_CAPTURE_TIME, LAST_EMOTION, LAST_POEM, LAST_POEM_TIME, CAPTURE_IN_PROGRESS
     data = data or {}
     if not cv2:
         ui.send_message("capture_result", {"error": "OpenCV not available (install libgl1)"})
         return
     try:
+        # Rate limit: only allow capture after cooldown
+        current_time = time.time()
+        if CAPTURE_IN_PROGRESS:
+            ui.send_message("capture_result", {"error": "Processing... please wait"})
+            return
+        if current_time - LAST_CAPTURE_TIME < CAPTURE_COOLDOWN and LAST_CAPTURE_TIME > 0:
+            remaining = CAPTURE_COOLDOWN - (current_time - LAST_CAPTURE_TIME)
+            ui.send_message("capture_result", {
+                "error": f"Please wait {remaining:.0f} seconds before next capture",
+                "cooldown_remaining": remaining,
+            })
+            return
+
+        CAPTURE_IN_PROGRESS = True
+        LAST_CAPTURE_TIME = current_time
+
         # Select audio sink if provided
         sink = data.get("audio_sink")
         if sink:
@@ -403,16 +521,21 @@ def on_capture(client_id, data=None):
             return
 
         if not EMOTION_AVAILABLE:
+            CAPTURE_IN_PROGRESS = False
             ui.send_message("capture_result", {"error": "Emotion detection not available"})
             return
 
         emotion, emotions = _detect_emotion_from_frame(img_arr)
         if emotion is None:
+            CAPTURE_IN_PROGRESS = False
             ui.send_message("capture_result", {"error": "No face detected"})
             return
 
-        # Update LCD eyes
-        Bridge.call("setEmotion", emotion.upper(), float(emotions.get(emotion, 80)))
+        # Update OLED/LCD eyes
+        try:
+            Bridge.call("setEmotion", emotion.upper(), float(emotions.get(emotion, 80)))
+        except Exception:
+            pass
 
         ui.send_message("emotion_update", {
             "emotion": emotion,
@@ -420,20 +543,47 @@ def on_capture(client_id, data=None):
             "timestamp": datetime.now(UTC).isoformat(),
         })
 
-        poem = get_poem_for_emotion(emotion)
-        ui.send_message("poem", {"emotion": emotion, "poem": poem})
-        ui.send_message("capture_result", {"ok": True, "emotion": emotion})
+        # Only call Gemini if emotion changed significantly or cache expired
+        emotion_changed = emotion != LAST_EMOTION
+        cache_expired = (LAST_POEM is None or
+                         current_time - LAST_POEM_TIME > POEM_CACHE_TIME)
+        api_error = None
+        if emotion_changed or cache_expired:
+            poem, api_error = get_poem_for_emotion(emotion)
+            LAST_POEM = poem
+            LAST_EMOTION = emotion
+            LAST_POEM_TIME = current_time
+        else:
+            poem = LAST_POEM
 
-        threading.Thread(target=speak_text, args=(poem,), daemon=True).start()
+        ui.send_message("poem", {"emotion": emotion, "poem": poem, "api_error": api_error})
+        ui.send_message("capture_result", {
+            "ok": True,
+            "emotion": emotion,
+            "cooldown_remaining": CAPTURE_COOLDOWN,
+            "api_error": api_error,
+        })
+
+        def _speak_and_report():
+            tts_ok, tts_err = speak_text(poem)
+            if tts_err:
+                ui.send_message("tts_error", {"error": tts_err})
+
+        threading.Thread(target=_speak_and_report, daemon=True).start()
 
     except Exception as e:
         ui.send_message("capture_result", {"error": str(e)})
+    finally:
+        CAPTURE_IN_PROGRESS = False
 
 def on_bt_scan(client_id, data=None):
-    devices = bluetooth_scan()
-    ui.send_message("bt_devices", {"devices": devices})
+    result = bluetooth_scan()
+    ui.send_message("bt_devices", result if isinstance(result, dict) else {"devices": result})
 
 def on_bt_devices(client_id, data=None):
+    if not shutil.which("bluetoothctl"):
+        ui.send_message("bt_devices", {"devices": [], "error": "Bluetooth only available in SBC mode"})
+        return
     devices = bluetooth_devices()
     ui.send_message("bt_devices", {"devices": devices})
 
@@ -457,7 +607,9 @@ def on_bt_connect(client_id, data=None):
 
 def on_audio_sinks(client_id, data=None):
     sinks = list_audio_sinks()
-    err = "pactl not available" if not shutil.which("pactl") else None
+    err = None
+    if not shutil.which("pactl"):
+        err = "PulseAudio not available - using fallback playback"
     ui.send_message("audio_sinks", {"sinks": sinks, "error": err})
 
 def on_set_audio_sink(client_id, data=None):
@@ -512,13 +664,31 @@ ui.on_message("set_audio_sink", on_set_audio_sink)
 # --- Start MJPEG server ---
 threading.Thread(target=run_mjpeg_server, daemon=True).start()
 
+# --- Arduino button poll (pin 2 triggers capture) ---
+def _poll_button():
+    time.sleep(3)  # Wait for Bridge to be ready
+    while True:
+        try:
+            result = Bridge.call("getButtonPressed")
+            if result:
+                on_capture(None, {})
+        except Exception:
+            pass
+        time.sleep(0.2)
+
+threading.Thread(target=_poll_button, daemon=True).start()
+
 # --- Main ---
 def _status(ok):
     return "[OK]" if ok else "[--]"
-print("Emotion Poet starting...")
+print("Teddy Talk starting...")
 print(f"  {_status(EMOTION_AVAILABLE)} Emotion detection")
-print(f"  {_status(bool(gemini_client))} Gemini")
-print(f"  {_status(bool(elevenlabs_client))} ElevenLabs")
+print(f"  {_status(bool(gemini_client))} Gemini (poem generation)")
+print(f"  {_status(bool(elevenlabs_client))} ElevenLabs (TTS)")
+if not GEMINI_KEY:
+    print("  [!] No Gemini API key - add python/gemini_api_key.txt or GEMINI_API_KEY in .env")
+if not ELEVENLABS_KEY:
+    print("  [!] No ElevenLabs API key - add python/elevenlabs_api_key.txt or ELEVENLABS_API_KEY in .env")
 print(f"  {_status(bool(cv2))} OpenCV / camera")
 print(f"  {_status(shutil.which('bluetoothctl') is not None)} bluetoothctl")
 print(f"  {_status(shutil.which('pactl') is not None)} pactl (audio)")

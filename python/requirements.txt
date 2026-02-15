@@ -1,5 +1,6 @@
-# Emotion Poet - Python dependencies (lightweight, no libGL)
+# Teddy Talk - Python dependencies (lightweight, no libGL)
 # FER+ ONNX: opencv-python-headless + onnxruntime only (~150 MB total)
+python-dotenv>=1.0.0
 opencv-python-headless>=4.8.0
 onnxruntime>=1.14.0
 google-genai>=1.0.0
