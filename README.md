@@ -1,16 +1,16 @@
-# Emotion Poet — Arduino UNO Q
+# Teddy Talk — Arduino UNO Q
 
-Face → Emotion → Poem → Romantic Voice. Two 16×4 LCD displays act as robot eyes with emotion-specific expressions. Full Bluetooth speaker pairing and selection.
+Face → Emotion → Poem → Personalized Voice
 
 ## Features
 
 - **Optional capture**: Live camera preview + capture button to analyze emotion
-- **Emotion detection**: FER+ ONNX (lightweight, ~19MB model, no libGL)
+- **Emotion detection**: FER+ ONNX (lightweight, deepface needed tensorflow for use, taking up too much storage)
 - **Poem generation**: Gemini API (2–6 lines, romantic)
-- **TTS**: ElevenLabs with romantic voice
+- **TTS**: ElevenLabs with personalized voice
 - **Robot eyes**: 2× 16×4 I2C LCDs with detailed emotion faces
-- **Bluetooth**: Pair and connect speakers from the app; route audio to selected device
-- **Camera**: USB camera streamed in web UI
+- **Bluetooth**: Speaker on pi
+- **Camera**: USB camera
 
 ## Hardware
 
@@ -25,13 +25,13 @@ Face → Emotion → Poem → Romantic Voice. Two 16×4 LCD displays act as robo
 
 **Windows (PowerShell):**
 ```powershell
-cd emotion_poet\scripts
+cd teddytalk\scripts
 .\setup.ps1
 ```
 
 **Linux/macOS:**
 ```bash
-cd emotion_poet/scripts
+cd teddytalk/scripts
 ./setup.sh
 ```
 
