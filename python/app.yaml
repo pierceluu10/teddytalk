@@ -1,0 +1,10 @@
+name: Emotion Poet
+icon: 🎭
+description: "Face emotion detection, Gemini poem, ElevenLabs romantic TTS. 2x 16x4 LCD robot eyes. Full Bluetooth speaker support."
+
+ports:
+  - 7000   # web_ui brick
+  - 7001   # MJPEG camera stream
+
+bricks:
+  - arduino:web_ui

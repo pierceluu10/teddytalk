@@ -1,0 +1,6 @@
+# Emotion Poet - Python dependencies (lightweight, no libGL)
+# FER+ ONNX: opencv-python-headless + onnxruntime only (~150 MB total)
+opencv-python-headless>=4.8.0
+onnxruntime>=1.14.0
+google-genai>=1.0.0
+elevenlabs>=1.0.0
