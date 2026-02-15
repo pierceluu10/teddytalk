@@ -1,214 +1,415 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Emotion Poet</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teddy Talk</title>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <style>
-        :root {
-            --bg: #0f172a;
-            --card: rgba(30, 41, 59, 0.8);
-            --accent: #a78bfa;
-            --text: #f1f5f9;
-            --muted: #94a3b8;
+      :root {
+        --bg: #0f172a;
+        --card: rgba(30, 41, 59, 0.8);
+        --accent: #a78bfa;
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        padding: 16px;
+        min-height: 100vh;
+      }
+      .container {
+        max-width: 720px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+      }
+      h1 {
+        font-size: 1.8rem;
+        margin: 0 0 0.25rem;
+        background: linear-gradient(135deg, var(--accent), #c4b5fd);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 0.95rem;
+        margin-bottom: 1rem;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid rgba(167, 139, 250, 0.2);
+      }
+      .card h3 {
+        margin: 0 0 0.75rem;
+        font-size: 0.9rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .camera-wrap {
+        position: relative;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        aspect-ratio: 4/3;
+      }
+      .camera-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+      .camera-placeholder {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+      }
+      .btn {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .btn:hover {
+        filter: brightness(1.1);
+      }
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .btn.secondary {
+        background: rgba(167, 139, 250, 0.3);
+      }
+      .flex {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      select {
+        padding: 8px 12px;
+        border-radius: 6px;
+        background: rgba(15, 23, 42, 0.8);
+        color: var(--text);
+        border: 1px solid rgba(167, 139, 250, 0.3);
+        min-width: 180px;
+      }
+      .emotion-val {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: capitalize;
+      }
+      .poem {
+        font-size: 1.1rem;
+        line-height: 1.7;
+        font-style: italic;
+      }
+      .poem.empty {
+        color: var(--muted);
+        font-style: normal;
+      }
+      .status {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #4ade80;
+        border-radius: 50%;
+        margin-right: 6px;
+        animation: pulse 2s infinite;
+      }
+      .status-dot.err {
+        background: #f87171;
+        animation: none;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
         }
-        * { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 16px; min-height: 100vh; }
-        .container { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
-        h1 { font-size: 1.8rem; margin: 0 0 0.25rem; background: linear-gradient(135deg, var(--accent), #c4b5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .sub { color: var(--muted); font-size: 0.95rem; margin-bottom: 1rem; }
-        .card { background: var(--card); border-radius: 12px; padding: 1.25rem; border: 1px solid rgba(167,139,250,0.2); }
-        .card h3 { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
-        .camera-wrap { position: relative; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; }
-        .camera-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
-        .camera-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
-        .btn { background: var(--accent); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 600; }
-        .btn:hover { filter: brightness(1.1); }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .btn.secondary { background: rgba(167,139,250,0.3); }
-        .flex { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
-        select { padding: 8px 12px; border-radius: 6px; background: rgba(15,23,42,0.8); color: var(--text); border: 1px solid rgba(167,139,250,0.3); min-width: 180px; }
-        .emotion-val { font-size: 1.8rem; font-weight: 600; color: var(--accent); text-transform: capitalize; }
-        .poem { font-size: 1.1rem; line-height: 1.7; font-style: italic; }
-        .poem.empty { color: var(--muted); font-style: normal; }
-        .status { font-size: 0.85rem; color: var(--muted); }
-        .status-dot { display: inline-block; width: 8px; height: 8px; background: #4ade80; border-radius: 50%; margin-right: 6px; animation: pulse 2s infinite; }
-        .status-dot.err { background: #f87171; animation: none; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-        .emotion-bars { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
-        .bar { background: rgba(167,139,250,0.15); padding: 4px 10px; border-radius: 16px; font-size: 0.8rem; color: var(--muted); }
-        .bar span { color: var(--accent); font-weight: 500; }
-        .bt-list, .sink-list { max-height: 120px; overflow-y: auto; }
-        .bt-item, .sink-item { padding: 6px 10px; margin: 4px 0; background: rgba(0,0,0,0.2); border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
-        .bt-item:hover, .sink-item:hover { background: rgba(167,139,250,0.2); }
+        50% {
+          opacity: 0.5;
+        }
+      }
+      .emotion-bars {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.5rem;
+      }
+      .bar {
+        background: rgba(167, 139, 250, 0.15);
+        padding: 4px 10px;
+        border-radius: 16px;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .bar span {
+        color: var(--accent);
+        font-weight: 500;
+      }
+      .bt-list,
+      .sink-list {
+        max-height: 120px;
+        overflow-y: auto;
+      }
+      .bt-item,
+      .sink-item {
+        padding: 6px 10px;
+        margin: 4px 0;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+      .bt-item:hover,
+      .sink-item:hover {
+        background: rgba(167, 139, 250, 0.2);
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <h1>Emotion Poet</h1>
-        <div class="sub">Face → Emotion → Poem → Romantic Voice • 2× LCD Robot Eyes</div>
+      <h1>Teddy Talk</h1>
+      <div class="sub">
+        Face → Emotion → Poem → Romantic Voice • 2× LCD Robot Eyes
+      </div>
 
-        <div class="card">
-            <h3>Camera</h3>
-            <div class="camera-wrap">
-                <img id="camera-img" src="" alt="Camera stream" style="display:none">
-                <div class="camera-placeholder" id="cam-placeholder">Loading camera...</div>
-            </div>
-            <div class="flex" style="margin-top:0.75rem">
-                <button class="btn" id="capture-btn">Capture & Analyze</button>
-            </div>
+      <div class="card">
+        <h3>Camera</h3>
+        <div class="camera-wrap">
+          <img
+            id="camera-img"
+            src=""
+            alt="Camera stream"
+            style="display: none"
+          />
+          <div class="camera-placeholder" id="cam-placeholder">
+            Loading camera...
+          </div>
         </div>
+        <div class="flex" style="margin-top: 0.75rem">
+          <button class="btn" id="capture-btn">Capture & Analyze</button>
+        </div>
+      </div>
 
-        <div class="card">
-            <h3>Audio Output (Bluetooth / Speakers)</h3>
-            <div class="flex" style="margin-bottom:0.5rem">
-                <button class="btn secondary" id="bt-scan">Scan Bluetooth</button>
-                <button class="btn secondary" id="sinks-btn">Refresh Audio Sinks</button>
-            </div>
-            <div class="flex" style="gap:1rem; flex-wrap:wrap">
-                <div>
-                    <label style="font-size:0.8rem;color:var(--muted)">Bluetooth devices</label>
-                    <div id="bt-list" class="bt-list" style="min-width:200px"></div>
-                </div>
-                <div>
-                    <label style="font-size:0.8rem;color:var(--muted)">Audio output</label>
-                    <select id="sink-select">
-                        <option value="">Default</option>
-                    </select>
-                </div>
-            </div>
+      <div class="card">
+        <h3>Audio Output (Bluetooth / Speakers)</h3>
+        <div class="flex" style="margin-bottom: 0.5rem">
+          <button class="btn secondary" id="bt-scan">Scan Bluetooth</button>
+          <button class="btn secondary" id="sinks-btn">
+            Refresh Audio Sinks
+          </button>
         </div>
+        <div class="flex" style="gap: 1rem; flex-wrap: wrap">
+          <div>
+            <label style="font-size: 0.8rem; color: var(--muted)"
+              >Bluetooth devices</label
+            >
+            <div id="bt-list" class="bt-list" style="min-width: 200px"></div>
+          </div>
+          <div>
+            <label style="font-size: 0.8rem; color: var(--muted)"
+              >Audio output</label
+            >
+            <select id="sink-select">
+              <option value="">Default</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
-        <div class="card">
-            <h3>Detected Emotion</h3>
-            <div class="emotion-val" id="emotion">—</div>
-            <div class="emotion-bars" id="emotion-bars"></div>
-        </div>
+      <div class="card">
+        <h3>Detected Emotion</h3>
+        <div class="emotion-val" id="emotion">—</div>
+        <div class="emotion-bars" id="emotion-bars"></div>
+      </div>
 
-        <div class="card">
-            <h3>Poem</h3>
-            <div id="poem" class="poem empty">Click Capture when ready. I'll detect your emotion and speak a romantic poem.</div>
+      <div class="card">
+        <h3>Poem</h3>
+        <div id="poem" class="poem empty">
+          Click Capture when ready. I'll detect your emotion and speak a
+          romantic poem.
         </div>
+      </div>
 
-        <div class="status">
-            <span class="status-dot" id="dot"></span>
-            <span id="status-txt">Connecting...</span>
-        </div>
+      <div class="status">
+        <span class="status-dot" id="dot"></span>
+        <span id="status-txt">Connecting...</span>
+      </div>
     </div>
 
     <script>
-        const host = window.location.hostname;
-        const streamUrl = 'http://' + host + ':7001/stream';
-        const img = document.getElementById('camera-img');
-        const placeholder = document.getElementById('cam-placeholder');
-        img.onload = () => { img.style.display = 'block'; placeholder.style.display = 'none'; };
-        img.onerror = () => { placeholder.textContent = 'Camera not available'; };
-        img.src = streamUrl;
+      const host = window.location.hostname;
+      const streamUrl = "http://" + host + ":7001/stream";
+      const img = document.getElementById("camera-img");
+      const placeholder = document.getElementById("cam-placeholder");
+      img.onload = () => {
+        img.style.display = "block";
+        placeholder.style.display = "none";
+      };
+      img.onerror = () => {
+        placeholder.textContent = "Camera not available";
+      };
+      img.src = streamUrl;
 
-        const socket = io(window.location.origin);
-        const captureBtn = document.getElementById('capture-btn');
-        const emotionEl = document.getElementById('emotion');
-        const emotionBars = document.getElementById('emotion-bars');
-        const poemEl = document.getElementById('poem');
-        const dot = document.getElementById('dot');
-        const statusTxt = document.getElementById('status-txt');
+      const socket = io(window.location.origin);
+      const captureBtn = document.getElementById("capture-btn");
+      const emotionEl = document.getElementById("emotion");
+      const emotionBars = document.getElementById("emotion-bars");
+      const poemEl = document.getElementById("poem");
+      const dot = document.getElementById("dot");
+      const statusTxt = document.getElementById("status-txt");
 
-        function setStatus(ok, msg) {
-            dot.className = 'status-dot' + (ok ? '' : ' err');
-            statusTxt.textContent = msg;
+      function setStatus(ok, msg) {
+        dot.className = "status-dot" + (ok ? "" : " err");
+        statusTxt.textContent = msg;
+      }
+
+      socket.on("connect", () => setStatus(true, "Connected"));
+      socket.on("disconnect", () => setStatus(false, "Disconnected"));
+
+      socket.on("capture_result", (d) => {
+        captureBtn.disabled = false;
+        if (d?.error) setStatus(false, "Error: " + d.error);
+        else setStatus(true, "Done");
+      });
+
+      socket.on("emotion_update", (d) => {
+        emotionEl.textContent = d.emotion || "—";
+        if (d.emotions) {
+          emotionBars.innerHTML = Object.entries(d.emotions)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(
+              ([e, v]) =>
+                `<div class="bar">${e}: <span>${Math.round(v)}%</span></div>`
+            )
+            .join("");
         }
+      });
 
-        socket.on('connect', () => setStatus(true, 'Connected'));
-        socket.on('disconnect', () => setStatus(false, 'Disconnected'));
+      socket.on("poem", (d) => {
+        poemEl.textContent = d.poem || "";
+        poemEl.classList.remove("empty");
+      });
 
-        socket.on('capture_result', (d) => {
-            captureBtn.disabled = false;
-            if (d?.error) setStatus(false, 'Error: ' + d.error);
-            else setStatus(true, 'Done');
-        });
-
-        socket.on('emotion_update', (d) => {
-            emotionEl.textContent = d.emotion || '—';
-            if (d.emotions) {
-                emotionBars.innerHTML = Object.entries(d.emotions)
-                    .sort((a,b) => b[1] - a[1]).slice(0,5)
-                    .map(([e,v]) => `<div class="bar">${e}: <span>${Math.round(v)}%</span></div>`).join('');
-            }
-        });
-
-        socket.on('poem', (d) => {
-            poemEl.textContent = d.poem || '';
-            poemEl.classList.remove('empty');
-        });
-
-        socket.on('bt_devices', (d) => {
-            const list = document.getElementById('bt-list');
-            const devs = d.devices || [];
-            const err = d.error || '';
-            if (!devs.length) {
-                list.innerHTML = err ? `<div class="bt-item">${err}</div>` : '<div class="bt-item">No devices. Click Scan Bluetooth.</div>';
-                return;
-            }
-            list.innerHTML = devs.map(dev =>
-                `<div class="bt-item" data-mac="${dev.mac}">
+      socket.on("bt_devices", (d) => {
+        const list = document.getElementById("bt-list");
+        const devs = d.devices || [];
+        const err = d.error || "";
+        if (!devs.length) {
+          list.innerHTML = err
+            ? `<div class="bt-item">${err}</div>`
+            : '<div class="bt-item">No devices. Click Scan Bluetooth.</div>';
+          return;
+        }
+        list.innerHTML = devs
+          .map(
+            (dev) =>
+              `<div class="bt-item" data-mac="${dev.mac}">
                     <strong>${dev.name || dev.mac}</strong>
-                    <span style="font-size:0.75rem;color:var(--muted)">${dev.mac}</span>
+                    <span style="font-size:0.75rem;color:var(--muted)">${
+                      dev.mac
+                    }</span>
                     <div class="flex" style="margin-top:4px">
                         <button class="btn secondary" style="padding:4px 10px;font-size:0.75rem" data-action="pair">Pair</button>
                         <button class="btn secondary" style="padding:4px 10px;font-size:0.75rem" data-action="connect">Connect</button>
                     </div>
                 </div>`
-            ).join('');
-            list.querySelectorAll('.bt-item').forEach(el => {
-                const mac = el.dataset.mac;
-                if (!mac) return;
-                el.querySelector('[data-action="pair"]')?.addEventListener('click', (e) => { e.stopPropagation(); setStatus(true, 'Pairing...'); socket.emit('bt_pair', { mac }); });
-                el.querySelector('[data-action="connect"]')?.addEventListener('click', (e) => { e.stopPropagation(); setStatus(true, 'Connecting...'); socket.emit('bt_connect', { mac }); });
-            });
+          )
+          .join("");
+        list.querySelectorAll(".bt-item").forEach((el) => {
+          const mac = el.dataset.mac;
+          if (!mac) return;
+          el.querySelector('[data-action="pair"]')?.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              setStatus(true, "Pairing...");
+              socket.emit("bt_pair", { mac });
+            }
+          );
+          el.querySelector('[data-action="connect"]')?.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              setStatus(true, "Connecting...");
+              socket.emit("bt_connect", { mac });
+            }
+          );
         });
+      });
 
-        socket.on('bt_pair_result', (d) => {
-            if (d.ok) setStatus(true, 'Paired');
-            else setStatus(false, 'Pair failed: ' + (d.error || ''));
-        });
+      socket.on("bt_pair_result", (d) => {
+        if (d.ok) setStatus(true, "Paired");
+        else setStatus(false, "Pair failed: " + (d.error || ""));
+      });
 
-        socket.on('bt_connect_result', (d) => {
-            if (d.ok) setStatus(true, 'Connected to speaker');
-            else setStatus(false, 'Connect failed: ' + (d.error || ''));
-        });
+      socket.on("bt_connect_result", (d) => {
+        if (d.ok) setStatus(true, "Connected to speaker");
+        else setStatus(false, "Connect failed: " + (d.error || ""));
+      });
 
-        socket.on('audio_sinks', (d) => {
-            const sel = document.getElementById('sink-select');
-            const sinks = d.sinks || [];
-            sel.innerHTML = '<option value="">Default</option>' +
-                sinks.map(s => `<option value="${s.name}">${s.description || s.name}</option>`).join('');
-            if (!sinks.length && d.error) sel.innerHTML += `<option disabled>${d.error}</option>`;
-        });
+      socket.on("audio_sinks", (d) => {
+        const sel = document.getElementById("sink-select");
+        const sinks = d.sinks || [];
+        sel.innerHTML =
+          '<option value="">Default</option>' +
+          sinks
+            .map(
+              (s) =>
+                `<option value="${s.name}">${s.description || s.name}</option>`
+            )
+            .join("");
+        if (!sinks.length && d.error)
+          sel.innerHTML += `<option disabled>${d.error}</option>`;
+      });
 
-        captureBtn.addEventListener('click', () => {
-            captureBtn.disabled = true;
-            setStatus(true, 'Analyzing...');
-            const sink = document.getElementById('sink-select').value;
-            socket.emit('capture', { audio_sink: sink || undefined });
-        });
+      captureBtn.addEventListener("click", () => {
+        captureBtn.disabled = true;
+        setStatus(true, "Analyzing...");
+        const sink = document.getElementById("sink-select").value;
+        socket.emit("capture", { audio_sink: sink || undefined });
+      });
 
-        document.getElementById('bt-scan').addEventListener('click', () => {
-            setStatus(true, 'Scanning Bluetooth...');
-            socket.emit('bt_scan', {});
-        });
+      document.getElementById("bt-scan").addEventListener("click", () => {
+        setStatus(true, "Scanning Bluetooth...");
+        socket.emit("bt_scan", {});
+      });
 
-        document.getElementById('sinks-btn').addEventListener('click', () => {
-            socket.emit('audio_sinks', {});
-        });
+      document.getElementById("sinks-btn").addEventListener("click", () => {
+        socket.emit("audio_sinks", {});
+      });
 
-        document.getElementById('sink-select').addEventListener('change', (e) => {
-            const v = e.target.value;
-            socket.emit('set_audio_sink', { sink: v || undefined });
-        });
+      document.getElementById("sink-select").addEventListener("change", (e) => {
+        const v = e.target.value;
+        socket.emit("set_audio_sink", { sink: v || undefined });
+      });
 
-        socket.emit('bt_devices', {});
-        socket.emit('audio_sinks', {});
+      socket.emit("bt_devices", {});
+      socket.emit("audio_sinks", {});
     </script>
-</body>
+  </body>
 </html>

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Emotion Poet - Arduino UNO Q
+Teddy Talk - Arduino UNO Q
 Face emotion detection, Gemini poem, ElevenLabs romantic TTS.
 2x 16x4 LCD robot eyes, full Bluetooth speaker support, USB camera stream.
 """
@@ -50,6 +50,12 @@ try:
 except Exception as e:
     print(f"Bootstrap check failed: {e}")
 
+from dotenv import load_dotenv
+
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_script_dir)
+load_dotenv(os.path.join(_project_root, ".env"))
+
 from arduino.app_utils import App, Bridge
 from arduino.app_bricks.web_ui import WebUI
 import base64
@@ -59,12 +65,6 @@ import json
 import threading
 import time
 from datetime import datetime, UTC
-
-# --- Config ---
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-API_KEYS_PATH = os.path.join(_script_dir, "api_keys.txt")
-GEMINI_KEY_PATH = os.path.join(_script_dir, "gemini_api_key.txt")
-ELEVENLABS_KEY_PATH = os.path.join(_script_dir, "elevenlabs_api_key.txt")
 
 # --- Web UI ---
 ui = WebUI()
@@ -94,19 +94,12 @@ if cv2:
         _req = os.path.join(_script_dir, "requirements.txt")
         print(f"  -> Install deps: pip install -r {_req}")
 
-# --- API keys ---
-def _load_api_key(env_var: str, *paths: str) -> str:
-    key = os.environ.get(env_var)
-    if key:
-        return key.strip()
-    for p in paths:
-        if os.path.isfile(p):
-            with open(p) as f:
-                return f.read().strip()
-    return ""
+# --- API keys (from .env) ---
+def _load_api_key(env_var: str) -> str:
+    return (os.environ.get(env_var) or "").strip()
 
-GEMINI_KEY = _load_api_key("GEMINI_API_KEY", GEMINI_KEY_PATH, API_KEYS_PATH)
-ELEVENLABS_KEY = _load_api_key("ELEVENLABS_API_KEY", ELEVENLABS_KEY_PATH, API_KEYS_PATH)
+GEMINI_KEY = _load_api_key("GEMINI_API_KEY")
+ELEVENLABS_KEY = _load_api_key("ELEVENLABS_API_KEY")
 
 # --- Gemini ---
 gemini_client = None
@@ -267,9 +260,9 @@ def speak_text(text: str) -> None:
             model_id="eleven_multilingual_v2",
             output_format="mp3_44100_128",
         )
-        temp = "/tmp/emotion_poet.mp3"
+        temp = "/tmp/teddytalk.mp3"
         if os.name == "nt":
-            temp = os.path.join(os.environ.get("TEMP", "."), "emotion_poet.mp3")
+            temp = os.path.join(os.environ.get("TEMP", "."), "teddytalk.mp3")
         with open(temp, "wb") as f:
             if hasattr(audio, "__iter__") and not isinstance(audio, (bytes, str)):
                 for chunk in audio:
@@ -515,7 +508,7 @@ threading.Thread(target=run_mjpeg_server, daemon=True).start()
 # --- Main ---
 def _status(ok):
     return "[OK]" if ok else "[--]"
-print("Emotion Poet starting...")
+print("Teddy Talk starting...")
 print(f"  {_status(EMOTION_AVAILABLE)} Emotion detection")
 print(f"  {_status(bool(gemini_client))} Gemini")
 print(f"  {_status(bool(elevenlabs_client))} ElevenLabs")

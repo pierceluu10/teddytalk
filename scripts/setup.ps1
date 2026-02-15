@@ -1,11 +1,11 @@
-# Emotion Poet - Pre-download setup for Windows
+# Teddy Talk - Pre-download setup for Windows
 # Run this before deploying to Arduino UNO Q
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $AppRoot = Split-Path -Parent $ScriptDir
 
-Write-Host "Emotion Poet - Pre-download setup" -ForegroundColor Cyan
+Write-Host "Teddy Talk - Pre-download setup" -ForegroundColor Cyan
 Write-Host "App root: $AppRoot"
 Write-Host ""
 
@@ -32,4 +32,4 @@ if (Test-Path $RequirementsPath) {
 }
 
 Write-Host ""
-Write-Host "Setup complete. Copy the emotion_poet folder to your UNO Q." -ForegroundColor Green
+Write-Host "Setup complete. Copy the teddytalk folder to your UNO Q." -ForegroundColor Green

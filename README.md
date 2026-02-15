@@ -24,36 +24,43 @@ Face → Emotion → Poem → Personalized Voice
 ### 1. Pre-download models and dependencies
 
 **Windows (PowerShell):**
+
 ```powershell
 cd teddytalk\scripts
 .\setup.ps1
 ```
 
 **Linux/macOS:**
+
 ```bash
 cd teddytalk/scripts
 ./setup.sh
 ```
 
 This downloads:
+
 - FER+ ONNX model (~19MB) to `python/models/`
 - Python wheels for offline install (optional)
 
 ### 2. API keys
 
-Create `python/api_keys.txt` (copy from `api_keys.txt.example`) or separate files:
-- `python/gemini_api_key.txt` — Gemini API key
-- `python/elevenlabs_api_key.txt` — ElevenLabs API key
+Copy `.env.example` to `.env` and add your keys:
+
+```
+GEMINI_API_KEY=your_gemini_api_key_here
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+```
 
 ### 3. Deploy to UNO Q
 
 1. **Import**: In App Lab, use **Create new app +** → **Import from folder** (or **Import from .zip**)
-2. Select the `emotion_poet` folder (or a ZIP of it)
+2. Select the `teddytalk` folder (or a ZIP of it)
 3. App Lab installs dependencies automatically. Uses `opencv-python-headless` only (no libGL). If packages are missing, SSH in and run `scripts/setup_on_device.sh`.
 4. Run the app in App Lab
 5. Open the web UI (URL shown in App Lab, e.g. http://10.197.243.162:7000)
 
 **If you get "405 Method Not Allowed" or "app is broken or misconfigured":**
+
 - Try **Import from folder** instead of ZIP (or vice versa)
 - Ensure the folder path has no special characters
 - Ensure you have internet (App Lab fetches brick metadata)
@@ -65,9 +72,9 @@ Default: left eye `0x27`, right eye `0x3F`. Adjust in `sketch/sketch.ino` if you
 
 ## Troubleshooting
 
-| Issue | Solution |
-|------|----------|
-| "No module named ..." | Python packages not installed. Re-import the app or run `scripts/setup_on_device.sh` on the UNO Q. |
-| "bluetoothctl: No such file or directory" | App runs in a container without Bluetooth tools. Use **SBC mode** for full Bluetooth. |
-| "pactl: No such file or directory" | Same as above – use SBC mode for audio sink selection. |
-| Camera not available | Check USB camera is connected. |
+| Issue                                     | Solution                                                                                           |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| "No module named ..."                     | Python packages not installed. Re-import the app or run `scripts/setup_on_device.sh` on the UNO Q. |
+| "bluetoothctl: No such file or directory" | App runs in a container without Bluetooth tools. Use **SBC mode** for full Bluetooth.              |
+| "pactl: No such file or directory"        | Same as above – use SBC mode for audio sink selection.                                             |
+| Camera not available                      | Check USB camera is connected.                                                                     |

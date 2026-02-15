@@ -7,6 +7,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_ROOT="$(dirname "$SCRIPT_DIR")"
 REQ="$APP_ROOT/python/requirements.txt"
 
-echo "Emotion Poet - Device setup"
+echo "Teddy Talk - Device setup"
 pip install -r "$REQ"
 echo "Done. Restart the app."

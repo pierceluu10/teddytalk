@@ -1,5 +1,5 @@
 /*
- * Emotion Poet - Arduino Side
+ * Teddy Talk - Arduino Side
  * Minimal version for import. Add LiquidCrystal I2C library for LCD eyes.
  * Uses Arduino_RouterBridge for App Lab.
  */
@@ -17,7 +17,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
-  Serial.println("Emotion Poet - Ready");
+  Serial.println("Teddy Talk - Ready");
 }
 
 void loop() {

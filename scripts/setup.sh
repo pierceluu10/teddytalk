@@ -1,12 +1,12 @@
 #!/bin/bash
-# Emotion Poet - Pre-download setup for Linux/macOS
+# Teddy Talk - Pre-download setup for Linux/macOS
 # Run this before deploying to Arduino UNO Q
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_ROOT="$(dirname "$SCRIPT_DIR")"
 
-echo "Emotion Poet - Pre-download setup"
+echo "Teddy Talk - Pre-download setup"
 echo "App root: $APP_ROOT"
 echo ""
 
@@ -25,4 +25,4 @@ if [ -f "$REQUIREMENTS" ]; then
 fi
 
 echo ""
-echo "Setup complete. Copy the emotion_poet folder to your UNO Q."
+echo "Setup complete. Copy the teddytalk folder to your UNO Q."
